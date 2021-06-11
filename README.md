@@ -1,13 +1,13 @@
-# Mattermost Simple|Simulated Client
+# Focalboard Simple|Simulated Client
 
-This app generates posts & reactions for a Mattermost server. Any (reasonable) number of users can be simulated, with each user generating posts and replying and/or reacting to posts based on a probabilities defined in the configuration file.
+This app generates boards, cards, commands, and other block types within the Focalboard application. Viewing of boards, cards and views is also simulated. Any (reasonable) number of users can be simulated, with each user generating and retrieving blocks based on a probabilities defined in the configuration file.
 
-Content for posts is `Lorem ipsum` generated text with randomized words, sentences, and paragraphs. Reactions are randomly chosen from a predefined list.
+Content for titles, descriptions and comments is `Lorem ipsum` generated text with randomized words, sentences, and paragraphs.
 
 ## Usage
 
 ```bash
-./mmsc -f config.json
+./fbsc -f config.json
 ```
 
 ## Configuration
@@ -15,10 +15,10 @@ Content for posts is `Lorem ipsum` generated text with randomized words, sentenc
 Create a default config:
 
 ```bash
-./mmsc -c -f config.json
+./fbsc -c -f config.json
 ```
 
-Modify the generated config file, at minimum adding a siteURL, admin credentials, team name, and at least one channel name. Teams, channels, and users will be created if needed.
+Modify the generated config file, at minimum adding a siteURL, and admin credentials. Workspaces, boards, cards and users will be created if needed.
 
 config.json:
 
@@ -27,20 +27,19 @@ config.json:
   "site_url": "http://192.168.1.78:8065",
   "admin_username": "admin",
   "admin_password": "password",
-  "team_name": "bongo-drummers",
+  "workspaces": "",
   "user_names": [
     "darth-vader",
     "capt-steve"
   ],
   "user_count": 5,
-  "channel_names": [
-    "share-test",
-    "big-share"
+  "boards": [
   ],
-  "avg_post_delay": 15000,
+  "avg_action_delay": 15000,
   "delay_variance": 0.5,
-  "prob_react": 0.25,
-  "prob_reply": 0.1,
+  "prob_comment": 0.1,
+  "prob_property": 0.01,
+  "prob_description": 0.01,
   "prob_edit": 0.05,
   "prob_delete": 0.01,
   "max_words_per_sentence": 100,
