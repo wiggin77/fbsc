@@ -36,9 +36,9 @@ func createDefaultConfig(filename string) error {
 	cfg := Config{
 		Usernames:                make([]string, 0),
 		UserCount:                DefaultUserCount,
-		AvgActionDelay:           DefaultAvgPostDelay,
-		ProbComment:              DefaultProbReact,
-		ProbProperty:             DefaultProbReply,
+		AvgActionDelay:           DefaultAvgActionDelay,
+		ProbComment:              DefaultProbComment,
+		ProbProperty:             DefaultProbProperty,
 		MaxWordsPerSentence:      DefaultMaxWordsPerSentence,
 		MaxSentencesPerParagraph: DefaultMaxSentencesPerParagraph,
 		MaxParagraphsPerComment:  DefaultMaxParagraphsPerComment,

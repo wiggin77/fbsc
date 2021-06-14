@@ -14,11 +14,10 @@ import (
 )
 
 const (
-	DefaultTeamName                 = "TestTeam"
 	DefaultUserCount                = 5
-	DefaultAvgPostDelay             = 15000
-	DefaultProbReact                = 0.25
-	DefaultProbReply                = 0.10
+	DefaultAvgActionDelay           = 15000
+	DefaultProbComment              = 0.25
+	DefaultProbProperty             = 0.10
 	DefaultMaxWordsPerSentence      = 100
 	DefaultMaxSentencesPerParagraph = 20
 	DefaultMaxParagraphsPerComment  = 2
