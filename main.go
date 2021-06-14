@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -22,7 +21,7 @@ const (
 	DefaultProbReply                = 0.10
 	DefaultMaxWordsPerSentence      = 100
 	DefaultMaxSentencesPerParagraph = 20
-	DefaultMaxParagraphsPerPost     = 2
+	DefaultMaxParagraphsPerComment  = 2
 
 	FilePerms = 0664
 )
@@ -159,24 +158,26 @@ func setUpInterruptHandler(cleanUp func()) {
 	}()
 }
 
-// setUpServer creates the team and channels listed in config.
+// setUpServer creates the workspaces and boards listed in config.
 func setUpServer(admin *AdminClient, cfg *Config) error {
-	if len(cfg.ChannelNames) == 0 {
-		return errors.New("At least one channel name must specified in config.")
-	}
+	/*
+		if len(cfg.Workspaces) == 0 {
+			return errors.New("At least one channel name must specified in config.")
+		}
 
-	team, err := admin.CreateTeam(cfg.TeamName, true)
-	if err != nil {
-		return err
-	}
-	cfg.TeamId = team.Id
-
-	for _, channelName := range cfg.ChannelNames {
-		channel, err := admin.CreateChannel(channelName, team.Id)
+		team, err := admin.CreateTeam(cfg.TeamName, true)
 		if err != nil {
 			return err
 		}
-		cfg.ChannelIds = append(cfg.ChannelIds, channel.Id)
-	}
+		cfg.TeamId = team.Id
+
+		for _, channelName := range cfg.Workspaces {
+			channel, err := admin.CreateChannel(channelName, team.Id)
+			if err != nil {
+				return err
+			}
+			cfg.ChannelIds = append(cfg.ChannelIds, channel.Id)
+		}
+	*/
 	return nil
 }

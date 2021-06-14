@@ -109,8 +109,8 @@ func (ac *AdminClient) CreateUser(username string) (*model.User, error) {
 	return user, nil
 }
 
-// AddUserToTeam adds a user to a team in idempotent manner.
-func (ac *AdminClient) AddUserToTeam(userId string, teamId string) error {
+// AddUserToWorkspaces adds a user to all the workspaces in an idempotent manner.
+func (ac *AdminClient) AddUserToTeam(userId string) error {
 	ac.mux.Lock()
 	defer ac.mux.Unlock()
 

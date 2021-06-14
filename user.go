@@ -28,7 +28,7 @@ func runUser(username string, ri runInfo) error {
 		return err
 	}
 
-	avgDelay := sim.ri.cfg.AvgPostDelay
+	avgDelay := sim.ri.cfg.AvgActionDelay
 	variance := sim.ri.cfg.DelayVariance
 
 	var actions = []Action{
@@ -107,7 +107,7 @@ func NewUserSim(username string, ri runInfo) (*UserSim, error) {
 		return nil, resp.Error
 	}
 
-	// add user to team
+	// add user to workspaces
 	if err := ri.admin.AddUserToTeam(user.Id, ri.cfg.TeamId); err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (sim *UserSim) Reply(post *model.Post, channelId string) error {
 		return nil
 	}
 
-	if !shouldDoIt(sim.ri.cfg.ProbReply) {
+	if !shouldDoIt(sim.ri.cfg.ProbProperty) {
 		return nil
 	}
 
@@ -165,7 +165,7 @@ func (sim *UserSim) Reply(post *model.Post, channelId string) error {
 }
 
 func (sim *UserSim) React(post *model.Post, channelId string) error {
-	if !shouldDoIt(sim.ri.cfg.ProbReact) {
+	if !shouldDoIt(sim.ri.cfg.ProbComment) {
 		return nil
 	}
 
