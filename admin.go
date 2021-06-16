@@ -108,25 +108,3 @@ func (ac *AdminClient) CreateUser(username string) (*model.User, error) {
 	}
 	return user, nil
 }
-
-// AddUserToWorkspaces adds a user to all the workspaces in an idempotent manner.
-func (ac *AdminClient) AddUserToTeam(userId string) error {
-	ac.mux.Lock()
-	defer ac.mux.Unlock()
-
-	if _, resp := ac.client.AddTeamMember(teamId, userId); !isSuccess(resp) {
-		return fmt.Errorf("cannot add user %s to team %s: %w", userId, teamId, resp.Error)
-	}
-	return nil
-}
-
-// AddUserToChannel adds a user to a channel in idempotent manner.
-func (ac *AdminClient) AddUserToChannel(userId string, channelId string) error {
-	ac.mux.Lock()
-	defer ac.mux.Unlock()
-
-	if _, resp := ac.client.AddChannelMember(channelId, userId); !isSuccess(resp) {
-		return fmt.Errorf("cannot add user %s to channel %s: %w", userId, channelId, resp.Error)
-	}
-	return nil
-}
