@@ -91,12 +91,12 @@ func wait(delay int64, done chan struct{}) bool {
 type UserSim struct {
 	username string
 	userId   string
-	client   *model.Client4
+	client   *Client
 	ri       runInfo
 }
 
 func NewUserSim(username string, ri runInfo) (*UserSim, error) {
-	client := model.NewAPIv4Client(ri.cfg.SiteURL)
+	client := NewClient(ri.cfg.SiteURL)
 
 	if _, err := ri.admin.CreateUser(username); err != nil {
 		return nil, err
@@ -105,18 +105,6 @@ func NewUserSim(username string, ri runInfo) (*UserSim, error) {
 	user, resp := client.Login(username, username)
 	if !isSuccess(resp) {
 		return nil, resp.Error
-	}
-
-	// add user to workspaces
-	if err := ri.admin.AddUserToTeam(user.Id, ri.cfg.TeamId); err != nil {
-		return nil, err
-	}
-
-	// add user to all channels
-	for _, channelId := range ri.cfg.ChannelIds {
-		if err := ri.admin.AddUserToChannel(user.Id, channelId); err != nil {
-			return nil, err
-		}
 	}
 
 	userSim := &UserSim{
