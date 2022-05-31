@@ -31,7 +31,7 @@ func (ac *AdminClient) CreateTeam(name string, open bool) (*mm_model.Team, error
 	defer ac.mux.Unlock()
 
 	team, _, err := ac.client.GetTeamByName(name, "")
-	if err != nil {
+	if err == nil {
 		return team, nil
 	}
 
@@ -92,7 +92,7 @@ func (ac *AdminClient) CreateUser(username string) (*mm_model.User, error) {
 	defer ac.mux.Unlock()
 
 	user, _, err := ac.client.GetUserByUsername(username, "")
-	if err != nil {
+	if err == nil {
 		return user, nil
 	}
 
