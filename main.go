@@ -11,13 +11,16 @@ import (
 	"time"
 
 	"github.com/mattermost/logr"
+
+	"github.com/mattermost/mattermost-server/v6/shared/mlog"
 )
 
 const (
-	DefaultUserCount                = 5
-	DefaultAvgActionDelay           = 15000
-	DefaultProbComment              = 0.25
-	DefaultProbProperty             = 0.10
+	DefaultUserCount        = 5
+	DefaultChannelsPerUser  = 3
+	DefaultBoardsPerChannel = 5
+	DefaultCardsPerBoard    = 25
+
 	DefaultMaxWordsPerSentence      = 100
 	DefaultMaxSentencesPerParagraph = 20
 	DefaultMaxParagraphsPerComment  = 2
@@ -118,28 +121,35 @@ func main() {
 	run(ri)
 }
 
-func run(ri runInfo) {
+func run(ri runInfo) stats {
 	var wg sync.WaitGroup
-
-	usernames := make([]string, 0, len(ri.cfg.Usernames)+ri.cfg.UserCount)
-	usernames = append(usernames, ri.cfg.Usernames...)
+	var totalStats stats
 
 	for i := 0; i < ri.cfg.UserCount; i++ {
-		usernames = append(usernames, makeName("."))
-	}
-
-	for _, username := range usernames {
 		wg.Add(1)
+
+		username := makeName(".")
 
 		go func(u string) {
 			defer wg.Done()
-			if err := runUser(u, ri); err != nil {
+			stats, err := runUser(u, ri)
+			if err != nil {
 				ri.logger.Error(err)
 			}
+			totalStats = totalStats.add(stats)
 		}(username)
 	}
 
 	wg.Wait()
+
+	ri.logger.Info("Statistics",
+		mlog.Int("Channels", totalStats.ChannelCount),
+		mlog.Int("Boards", totalStats.BoardCount),
+		mlog.Int("Cards", totalStats.CardCount),
+		mlog.Int("Text", totalStats.TextCount),
+	)
+
+	return totalStats
 }
 
 func setUpInterruptHandler(cleanUp func()) {
@@ -157,26 +167,12 @@ func setUpInterruptHandler(cleanUp func()) {
 	}()
 }
 
-// setUpServer creates the workspaces and boards listed in config.
+// setUpServer creates the team.
 func setUpServer(admin *AdminClient, cfg *Config) error {
-	/*
-		if len(cfg.Workspaces) == 0 {
-			return errors.New("At least one channel name must specified in config.")
-		}
-
-		team, err := admin.CreateTeam(cfg.TeamName, true)
-		if err != nil {
-			return err
-		}
-		cfg.TeamId = team.Id
-
-		for _, channelName := range cfg.Workspaces {
-			channel, err := admin.CreateChannel(channelName, team.Id)
-			if err != nil {
-				return err
-			}
-			cfg.ChannelIds = append(cfg.ChannelIds, channel.Id)
-		}
-	*/
+	team, err := admin.CreateTeam(cfg.TeamName, true)
+	if err != nil {
+		return err
+	}
+	cfg.setTeamID(team.Id)
 	return nil
 }

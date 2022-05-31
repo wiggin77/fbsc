@@ -1,19 +1,15 @@
 package main
 
 import (
-	"time"
+	"fmt"
 
 	"github.com/mattermost/logr"
-	"github.com/mattermost/mattermost-server/model"
+
+	fb_model "github.com/mattermost/focalboard/server/model"
+	fb_utils "github.com/mattermost/focalboard/server/utils"
+
+	mm_model "github.com/mattermost/mattermost-server/v6/model"
 )
-
-type postActionFunc func(post *model.Post, channelId string) error
-
-type Action struct {
-	f             postActionFunc
-	name          string
-	actOnOwnPosts bool
-}
 
 type runInfo struct {
 	cfg    *Config
@@ -22,177 +18,129 @@ type runInfo struct {
 	admin  *AdminClient
 }
 
-func runUser(username string, ri runInfo) error {
-	sim, err := NewUserSim(username, ri)
+type stats struct {
+	ChannelCount int
+	BoardCount   int
+	CardCount    int
+	TextCount    int
+}
+
+func (s stats) add(s2 stats) stats {
+	return stats{
+		ChannelCount: s.ChannelCount + s2.ChannelCount,
+		BoardCount:   s.BoardCount + s2.BoardCount,
+		CardCount:    s.CardCount + s2.CardCount,
+		TextCount:    s.TextCount + s2.CardCount,
+	}
+}
+
+func runUser(username string, ri runInfo) (stats, error) {
+	stats := stats{}
+
+	// create user
+	user, err := ri.admin.CreateUser(username)
 	if err != nil {
-		return err
+		return stats, err
 	}
 
-	avgDelay := sim.ri.cfg.AvgActionDelay
-	variance := sim.ri.cfg.DelayVariance
-
-	var actions = []Action{
-		{f: sim.Reply, name: "reply", actOnOwnPosts: false},
-		{f: sim.React, name: "react", actOnOwnPosts: false},
-		{f: sim.Edit, name: "edit", actOnOwnPosts: true},
-		{f: sim.Delete, name: "delete", actOnOwnPosts: true},
+	client, err := NewClient(ri.cfg.SiteURL, user.Username, user.Username)
+	if err != nil {
+		return stats, err
 	}
 
-	for {
-		delay := randomDuration(avgDelay, variance)
-
-		if wait(delay, ri.done) {
-			return nil
+	// create channels, boards, cards, and content
+	for i := 0; i < ri.cfg.ChannelsPerUser; i++ {
+		channelName := fmt.Sprintf("%s-%d", user.Username, i+1)
+		channel, err := client.CreateChannel(channelName, ri.cfg.TeamID())
+		if err != nil {
+			return stats, fmt.Errorf("cannot create channel %s: %w", channelName, err)
 		}
+		stats.ChannelCount++
 
-		sim.Post(lorem(sim.ri.cfg), pickRandomString(sim.ri.cfg.ChannelIds))
+		boards := makeBoards(ri.cfg.BoardsPerChannel, channel.Id, user)
 
-		for _, channelId := range sim.ri.cfg.ChannelIds {
-			postList, err := getPostsForChannelAroundLastUnread(sim.client, sim.userId, channelId)
-			if err != nil {
-				sim.ri.logger.Errorf("Cannot getPostsForChannelAroundLastUnread for user %s: %v", sim.username, err)
-				continue
-			}
+		for _, board := range boards {
+			blocks := make([]fb_model.Block, 0, ri.cfg.CardsPerBoard*7+1)
+			blocks = append(blocks, board)
+			var content []fb_model.Block
 
-			for _, postId := range postList.Order {
-				post, resp := sim.client.GetPost(postId, "")
-				if !isSuccess(resp) {
-					sim.ri.logger.Errorf("Cannot get post %s for user %s: %v", postId, sim.username, err)
-					continue
-				}
+			cards := makeCards(ri.cfg.CardsPerBoard, channel.Id, board.ID, user)
+			for _, card := range cards {
+				content = makeContent(ri.cfg, pickRandomInt(1, 7), channel.Id, board.ID, card.ID, user)
+				blocks = append(blocks, content...)
 
-				for _, action := range actions {
-					if (action.actOnOwnPosts && post.UserId != sim.userId) || (!action.actOnOwnPosts && post.UserId == sim.userId) {
-						continue
-					}
-
-					if wait(10, ri.done) {
-						return nil
-					}
-					if err := action.f(post, channelId); err != nil {
-						sim.ri.logger.Errorf("Cannot %s for post %s in channel %s for user %s: %v",
-							action.name, post.Id, channelId, sim.username, resp.Error)
-					}
+				select {
+				case <-ri.done:
+					return stats, fmt.Errorf("aborting user %s", user.Username)
+				default:
 				}
 			}
+
+			_, resp := client.FBclient.InsertBlocks(blocks)
+			if resp.Error != nil {
+				return stats, fmt.Errorf("cannot insert blocks for board %s: %w", board.ID, resp.Error)
+			}
+			stats.BoardCount++
+			stats.CardCount += len(cards)
+			stats.TextCount += len(content)
 		}
 	}
+	return stats, nil
 }
 
-func wait(delay int64, done chan struct{}) bool {
-	select {
-	case <-done:
-		return true
-	case <-time.After(time.Millisecond * time.Duration(delay)):
+func makeBoards(count int, workspaceID string, creator *mm_model.User) []fb_model.Block {
+	blocks := make([]fb_model.Block, 0, count)
+	for i := 0; i < count; i++ {
+		id := fb_utils.NewID(fb_utils.IDTypeBoard)
+		board := fb_model.Block{
+			ID:          id,
+			RootID:      id,
+			CreatedBy:   creator.Id,
+			ModifiedBy:  creator.Id,
+			Schema:      1,
+			Type:        fb_model.TypeBoard,
+			Title:       fmt.Sprintf("board %d", pickRandomInt(1, 10000)),
+			WorkspaceID: workspaceID,
+		}
+		blocks = append(blocks, board)
 	}
-	return false
+	return blocks
 }
 
-type UserSim struct {
-	username string
-	userId   string
-	client   *Client
-	ri       runInfo
+func makeCards(count int, workspaceID string, boardID string, creator *mm_model.User) []fb_model.Block {
+	blocks := make([]fb_model.Block, 0, count)
+	for i := 0; i < count; i++ {
+		card := fb_model.Block{
+			ID:          fb_utils.NewID(fb_utils.IDTypeCard),
+			RootID:      boardID,
+			ParentID:    boardID,
+			CreatedBy:   creator.Id,
+			ModifiedBy:  creator.Id,
+			Schema:      1,
+			Type:        fb_model.TypeCard,
+			Title:       fmt.Sprintf("card %d", pickRandomInt(1, 10000)),
+			WorkspaceID: workspaceID,
+		}
+		blocks = append(blocks, card)
+	}
+	return blocks
 }
 
-func NewUserSim(username string, ri runInfo) (*UserSim, error) {
-	client := NewClient(ri.cfg.SiteURL)
-
-	if _, err := ri.admin.CreateUser(username); err != nil {
-		return nil, err
+func makeContent(cfg *Config, count int, workspaceID string, boardID string, cardID string, creator *mm_model.User) []fb_model.Block {
+	blocks := make([]fb_model.Block, 0, count)
+	for i := 0; i < count; i++ {
+		block := fb_model.Block{
+			ID:          fb_utils.NewID(fb_utils.IDTypeBlock),
+			RootID:      boardID,
+			ParentID:    cardID,
+			CreatedBy:   creator.Id,
+			ModifiedBy:  creator.Id,
+			Schema:      1,
+			Type:        fb_model.TypeText,
+			Title:       lorem(cfg),
+			WorkspaceID: workspaceID,
+		}
+		blocks = append(blocks, block)
 	}
-
-	user, resp := client.Login(username, username)
-	if !isSuccess(resp) {
-		return nil, resp.Error
-	}
-
-	userSim := &UserSim{
-		username: username,
-		userId:   user.Id,
-		client:   client,
-		ri:       ri,
-	}
-	return userSim, nil
-}
-
-// Post creates a new post for the specified channel.
-func (sim *UserSim) Post(text string, channelId string) {
-	post := &model.Post{
-		UserId:    sim.userId,
-		ChannelId: channelId,
-		Message:   text,
-		Type:      model.POST_DEFAULT,
-	}
-
-	if _, resp := sim.client.CreatePost(post); !isSuccess(resp) {
-		sim.ri.logger.Errorf("Cannot post to channel %s for user %s:", channelId, sim.username, resp.Error)
-	}
-}
-
-func (sim *UserSim) Reply(post *model.Post, channelId string) error {
-	// don't reply to a reply
-	if post.RootId != "" {
-		return nil
-	}
-
-	if !shouldDoIt(sim.ri.cfg.ProbProperty) {
-		return nil
-	}
-
-	reply := &model.Post{
-		UserId:    sim.userId,
-		ChannelId: channelId,
-		RootId:    post.Id,
-		Message:   lorem(sim.ri.cfg),
-	}
-	if _, resp := sim.client.CreatePost(reply); !isSuccess(resp) {
-		return resp.Error
-	}
-	return nil
-}
-
-func (sim *UserSim) React(post *model.Post, channelId string) error {
-	if !shouldDoIt(sim.ri.cfg.ProbComment) {
-		return nil
-	}
-
-	reaction := &model.Reaction{
-		UserId:    sim.userId,
-		PostId:    post.Id,
-		EmojiName: randomEmoji(),
-		CreateAt:  model.GetMillis(),
-	}
-	if _, resp := sim.client.SaveReaction(reaction); !isSuccess(resp) {
-		return resp.Error
-	}
-	return nil
-}
-
-func (sim *UserSim) Edit(post *model.Post, channelId string) error {
-	if !shouldDoIt(sim.ri.cfg.ProbEdit) {
-		return nil
-	}
-
-	text := lorem(sim.ri.cfg)
-
-	patch := &model.PostPatch{
-		Message: &text,
-	}
-
-	if _, resp := sim.client.PatchPost(post.Id, patch); !isSuccess(resp) {
-		return resp.Error
-	}
-	return nil
-}
-
-func (sim *UserSim) Delete(post *model.Post, channelId string) error {
-	if !shouldDoIt(sim.ri.cfg.ProbDelete) {
-		return nil
-	}
-
-	if _, resp := sim.client.DeletePost(post.Id); !isSuccess(resp) {
-		return resp.Error
-	}
-	return nil
+	return blocks
 }
