@@ -11,21 +11,14 @@ type Config struct {
 	AdminUsername string `json:"admin_username"`
 	AdminPassword string `json:"admin_password"`
 
-	Usernames []string `json:"user_names"` // used when using specific usernames
-	UserCount int      `json:"user_count"` // used when creating random users
+	TeamName string `json:"team_name"` // optional: if empty then a new team will be created
+	teamID   string
 
-	Workspaces []string `json:"workspaces"` // workspaces to create and/or use
+	UserCount int `json:"user_count"` // number of users to create
 
-	BoardCount int `json:"board_count"`
-	CardCount  int `json:"card_count"`
-
-	AvgActionDelay int64   `json:"avg_action_delay"` // average milliseconds between actions
-	DelayVariance  float32 `json:"delay_variance"`   // how much the actual delay can randomly vary from averge (0.0 - 1.0)
-
-	ProbComment  float32 `json:"prob_comment"`  // probability a user will comment on a card (0.0 - 1.0)
-	ProbProperty float32 `json:"prob_property"` // probability a user will add/modify a card property (0.0 - 1.0)
-	ProbEdit     float32 `json:"prob_edit"`     // probability a user will edit their own card (0.0 - 1.0)
-	ProbDelete   float32 `json:"prob_delete"`   // probability a user will delete their own card (0.0 - 1.0)
+	ChannelsPerUser  int `json:"channels_per_user"`
+	BoardsPerChannel int `json:"boards_per_channel"`
+	CardsPerBoard    int `json:"cards_per_board"`
 
 	MaxWordsPerSentence      int `json:"max_words_per_sentence"`
 	MaxSentencesPerParagraph int `json:"max_sentences_per_paragraph"`
@@ -34,11 +27,14 @@ type Config struct {
 
 func createDefaultConfig(filename string) error {
 	cfg := Config{
-		Usernames:                make([]string, 0),
+		SiteURL:                  "",
+		AdminUsername:            "",
+		AdminPassword:            "",
+		TeamName:                 "",
 		UserCount:                DefaultUserCount,
-		AvgActionDelay:           DefaultAvgActionDelay,
-		ProbComment:              DefaultProbComment,
-		ProbProperty:             DefaultProbProperty,
+		ChannelsPerUser:          DefaultChannelsPerUser,
+		BoardsPerChannel:         DefaultBoardsPerChannel,
+		CardsPerBoard:            DefaultCardsPerBoard,
 		MaxWordsPerSentence:      DefaultMaxWordsPerSentence,
 		MaxSentencesPerParagraph: DefaultMaxSentencesPerParagraph,
 		MaxParagraphsPerComment:  DefaultMaxParagraphsPerComment,
@@ -62,6 +58,14 @@ func loadConfig(filename string) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+func (c *Config) TeamID() string {
+	return c.teamID
+}
+
+func (c *Config) setTeamID(teamID string) {
+	c.teamID = teamID
 }
 
 func (c *Config) GetMaxWordsPerSentence() int {

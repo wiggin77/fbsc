@@ -4,19 +4,19 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/mattermost/mattermost-server/model"
+	mm_model "github.com/mattermost/mattermost-server/v6/model"
 )
 
 type AdminClient struct {
 	mux    sync.Mutex
-	client *model.Client4
+	client *mm_model.Client4
 }
 
 // NewAdminClient creates a new admin client that is logged into a Mattermost server.
 func NewAdminClient(cfg *Config) (*AdminClient, error) {
-	client := model.NewAPIv4Client(cfg.SiteURL)
-	if _, resp := client.Login(cfg.AdminUsername, cfg.AdminPassword); !isSuccess(resp) {
-		return nil, resp.Error
+	client := mm_model.NewAPIv4Client(cfg.SiteURL)
+	if _, _, err := client.Login(cfg.AdminUsername, cfg.AdminPassword); err != nil {
+		return nil, err
 	}
 
 	admin := &AdminClient{
@@ -26,21 +26,21 @@ func NewAdminClient(cfg *Config) (*AdminClient, error) {
 }
 
 // CreateTeam creates a new team in idempotent manner.
-func (ac *AdminClient) CreateTeam(name string, open bool) (*model.Team, error) {
+func (ac *AdminClient) CreateTeam(name string, open bool) (*mm_model.Team, error) {
 	ac.mux.Lock()
 	defer ac.mux.Unlock()
 
-	team, resp := ac.client.GetTeamByName(name, "")
-	if isSuccess(resp) {
+	team, _, err := ac.client.GetTeamByName(name, "")
+	if err == nil {
 		return team, nil
 	}
 
-	teamType := model.TEAM_OPEN
+	teamType := mm_model.TeamOpen
 	if !open {
-		teamType = model.TEAM_INVITE
+		teamType = mm_model.TeamInvite
 	}
 
-	teamNew := &model.Team{
+	teamNew := &mm_model.Team{
 		Name:            name,
 		DisplayName:     name,
 		Description:     "Team created by MMSC",
@@ -48,63 +48,64 @@ func (ac *AdminClient) CreateTeam(name string, open bool) (*model.Team, error) {
 		AllowOpenInvite: open,
 	}
 
-	team, resp = ac.client.CreateTeam(teamNew)
-	if !isSuccess(resp) {
-		return nil, fmt.Errorf("cannot create team %s: %w", name, resp.Error)
+	team, _, err = ac.client.CreateTeam(teamNew)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create team %s: %w", name, err)
 	}
 	return team, nil
 }
 
 // CreateChannel creates a new channel in a idempotent manner.
-func (ac *AdminClient) CreateChannel(channelName string, teamId string) (*model.Channel, error) {
+func (ac *AdminClient) CreateChannel(channelName string, teamId string) (*mm_model.Channel, error) {
 	ac.mux.Lock()
 	defer ac.mux.Unlock()
 
-	channel, resp := ac.client.GetChannelByName(channelName, teamId, "")
-	if isSuccess(resp) {
+	channel, _, err := ac.client.GetChannelByName(channelName, teamId, "")
+	if err != nil {
 		return channel, nil
 	}
 
-	me, resp := ac.client.GetMe("")
-	if !isSuccess(resp) {
-		return nil, resp.Error
+	me, _, err := ac.client.GetMe("")
+	if err != nil {
+		return nil, err
 	}
 
-	channelNew := &model.Channel{
+	channelNew := &mm_model.Channel{
 		TeamId:      teamId,
-		Type:        model.CHANNEL_OPEN,
+		Type:        mm_model.ChannelTypeOpen,
 		Name:        channelName,
 		DisplayName: channelName,
-		Header:      "A channel created by MMSC.",
+		Header:      "A channel created by FBSC.",
 		CreatorId:   me.Id,
 	}
 
-	channel, resp = ac.client.CreateChannel(channelNew)
-	if !isSuccess(resp) {
-		return nil, fmt.Errorf("cannot create channel %s: %w", channelName, resp.Error)
+	channel, _, err = ac.client.CreateChannel(channelNew)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create channel %s: %w", channelName, err)
 	}
 	return channel, nil
 }
 
 // CreateUser creates a new user in a idempotent manner.
-func (ac *AdminClient) CreateUser(username string) (*model.User, error) {
+func (ac *AdminClient) CreateUser(username string, teamID string) (*mm_model.User, error) {
 	ac.mux.Lock()
 	defer ac.mux.Unlock()
 
-	user, resp := ac.client.GetUserByUsername(username, "")
-	if isSuccess(resp) {
+	user, _, err := ac.client.GetUserByUsername(username, "")
+	if err == nil {
 		return user, nil
 	}
 
-	userNew := &model.User{
-		Username: username,
-		Password: username,
-		Email:    fmt.Sprintf("%s@example.com", username),
+	userNew := &mm_model.User{
+		Username:      username,
+		Password:      "test-password-1", //reverseString(username),
+		Email:         fmt.Sprintf("%s@example.com", username),
+		EmailVerified: true,
 	}
 
-	user, resp = ac.client.CreateUser(userNew)
-	if !isSuccess(resp) {
-		return nil, fmt.Errorf("cannot create user %s: %w", username, resp.Error)
+	user, _, err = ac.client.CreateUser(userNew)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create user %s: %w", username, err)
 	}
 	return user, nil
 }

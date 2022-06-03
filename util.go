@@ -1,13 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"time"
 
-	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-server/v6/model"
 )
 
 var rnd *rand.Rand
@@ -63,23 +61,19 @@ func isSuccess(resp *model.Response) bool {
 	return false
 }
 
-func getPostsForChannelAroundLastUnread(client *model.Client4, userId string, channelId string) (*model.PostList, error) {
-	path := fmt.Sprintf("/users/%s/channels/%s/posts/unread", userId, channelId)
-	query := fmt.Sprintf("?limit_before=%d&limit_after=%d", 1, 60)
-
-	r, err := client.DoApiGet(path+query, "")
-
-	if err != nil {
-		return nil, err
+func wait(delay int64, done chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	case <-time.After(time.Millisecond * time.Duration(delay)):
 	}
-	defer closeBody(r)
-
-	return model.PostListFromJson(r.Body), nil
+	return false
 }
 
-func closeBody(r *http.Response) {
-	if r.Body != nil {
-		_, _ = ioutil.ReadAll(r.Body)
-		_ = r.Body.Close()
+func reverseString(s string) string {
+	chars := []rune(s)
+	for i, j := 0, len(chars)-1; i < j; i, j = i+1, j-1 {
+		chars[i], chars[j] = chars[j], chars[i]
 	}
+	return string(chars)
 }

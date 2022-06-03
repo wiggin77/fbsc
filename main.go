@@ -10,16 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattermost/logr"
+	"github.com/mattermost/logr/v2"
 )
 
 const (
-	DefaultUserCount                = 5
-	DefaultAvgActionDelay           = 15000
-	DefaultProbComment              = 0.25
-	DefaultProbProperty             = 0.10
-	DefaultMaxWordsPerSentence      = 100
-	DefaultMaxSentencesPerParagraph = 20
+	DefaultUserCount        = 5
+	DefaultChannelsPerUser  = 3
+	DefaultBoardsPerChannel = 5
+	DefaultCardsPerBoard    = 25
+
+	DefaultMaxWordsPerSentence      = 30
+	DefaultMaxSentencesPerParagraph = 5
 	DefaultMaxParagraphsPerComment  = 2
 
 	FilePerms = 0664
@@ -40,7 +41,7 @@ func main() {
 
 	defer func(code *int) { os.Exit(*code) }(&exitCode)
 
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	logger := lgr.NewLogger()
 	if err := initLogging(lgr, logConfigFile); err != nil {
 		exitCode = 1
@@ -72,7 +73,7 @@ func main() {
 
 	if createConfig {
 		if err := createDefaultConfig(configFile); err != nil {
-			logger.Error(err)
+			logger.Error("Cannot create default config", logr.Err(err))
 			exitCode = 1
 		}
 		return
@@ -80,7 +81,7 @@ func main() {
 
 	cfg, err := loadConfig(configFile)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("Cannot load config", logr.Err(err))
 		exitCode = 1
 		return
 	}
@@ -98,13 +99,13 @@ func main() {
 
 	admin, err := NewAdminClient(cfg)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("Cannot create admin client", logr.Err(err))
 		exitCode = 3
 		return
 	}
 
 	if err := setUpServer(admin, cfg); err != nil {
-		logger.Error(err)
+		logger.Error("Cannot setup server", logr.Err(err))
 		exitCode = 4
 		return
 	}
@@ -120,22 +121,24 @@ func main() {
 
 func run(ri runInfo) {
 	var wg sync.WaitGroup
-
-	usernames := make([]string, 0, len(ri.cfg.Usernames)+ri.cfg.UserCount)
-	usernames = append(usernames, ri.cfg.Usernames...)
-
 	for i := 0; i < ri.cfg.UserCount; i++ {
-		usernames = append(usernames, makeName("."))
-	}
-
-	for _, username := range usernames {
 		wg.Add(1)
+
+		username := makeName(".")
 
 		go func(u string) {
 			defer wg.Done()
-			if err := runUser(u, ri); err != nil {
-				ri.logger.Error(err)
+			stats, err := runUser(u, ri)
+			if err != nil {
+				ri.logger.Error("Cannot simulate user", logr.Err(err))
 			}
+			ri.logger.Info("Statistics",
+				logr.String("user", username),
+				logr.Int("Channels", stats.ChannelCount),
+				logr.Int("Boards", stats.BoardCount),
+				logr.Int("Cards", stats.CardCount),
+				logr.Int("Text", stats.TextCount),
+			)
 		}(username)
 	}
 
@@ -157,26 +160,12 @@ func setUpInterruptHandler(cleanUp func()) {
 	}()
 }
 
-// setUpServer creates the workspaces and boards listed in config.
+// setUpServer creates the team.
 func setUpServer(admin *AdminClient, cfg *Config) error {
-	/*
-		if len(cfg.Workspaces) == 0 {
-			return errors.New("At least one channel name must specified in config.")
-		}
-
-		team, err := admin.CreateTeam(cfg.TeamName, true)
-		if err != nil {
-			return err
-		}
-		cfg.TeamId = team.Id
-
-		for _, channelName := range cfg.Workspaces {
-			channel, err := admin.CreateChannel(channelName, team.Id)
-			if err != nil {
-				return err
-			}
-			cfg.ChannelIds = append(cfg.ChannelIds, channel.Id)
-		}
-	*/
+	team, err := admin.CreateTeam(cfg.TeamName, true)
+	if err != nil {
+		return err
+	}
+	cfg.setTeamID(team.Id)
 	return nil
 }
