@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net/url"
+	"path"
+	"strings"
 
 	fb_client "github.com/mattermost/focalboard/server/client"
 
@@ -20,22 +23,32 @@ type Client struct {
 func NewClient(siteURL string, username string, password string) (*Client, error) {
 	mmclient := mm_model.NewAPIv4Client(siteURL)
 
-	_, _, err := mmclient.Login(username, password)
+	user, _, err := mmclient.Login(username, password)
 	if err != nil {
 		return nil, err
 	}
 
 	fbclient := fb_client.NewClient(siteURL, mmclient.AuthToken)
-
-	me, _, err := mmclient.GetMe("")
+	u, err := url.Parse(siteURL)
 	if err != nil {
-		return nil, fmt.Errorf("cannot fetch user %s: %w", username, err)
+		return nil, fmt.Errorf("Invalid site URL: %w", err)
+	}
+	u.Path = path.Join("/plugins/focalboard/", fb_client.APIURLSuffix)
+	fbclient.APIURL = u.String()
+
+	me2, resp := fbclient.GetMe()
+	if resp.Error != nil {
+		return nil, fmt.Errorf("cannot fetch FocalBoard user %s: %w", username, resp.Error)
+	}
+
+	if me2.ID != user.Id {
+		return nil, fmt.Errorf("user ids don't match %s != %s: %w", user.Id, me2.ID, err)
 	}
 
 	return &Client{
 		FBclient: fbclient,
 		MMclient: mmclient,
-		user:     me,
+		user:     user,
 	}, nil
 }
 
@@ -46,6 +59,12 @@ func (c *Client) InsertBlocks(blocks []fb_model.Block) ([]fb_model.Block, error)
 
 // CreateChannel creates a new channel in an idempotent manner.
 func (c *Client) CreateChannel(channelName string, teamId string) (*mm_model.Channel, error) {
+	displayName := channelName
+
+	channelName = strings.ToLower(channelName)
+	channelName = strings.ReplaceAll(channelName, ".", "-")
+	channelName = strings.ReplaceAll(channelName, " ", "")
+
 	channel, _, _ := c.MMclient.GetChannelByName(channelName, teamId, "")
 	if channel != nil {
 		return channel, nil
@@ -55,7 +74,7 @@ func (c *Client) CreateChannel(channelName string, teamId string) (*mm_model.Cha
 		TeamId:      teamId,
 		Type:        mm_model.ChannelTypeOpen,
 		Name:        channelName,
-		DisplayName: channelName,
+		DisplayName: displayName,
 		Header:      "A channel created by FBSC.",
 		CreatorId:   c.user.Id,
 	}

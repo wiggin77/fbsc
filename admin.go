@@ -87,7 +87,7 @@ func (ac *AdminClient) CreateChannel(channelName string, teamId string) (*mm_mod
 }
 
 // CreateUser creates a new user in a idempotent manner.
-func (ac *AdminClient) CreateUser(username string) (*mm_model.User, error) {
+func (ac *AdminClient) CreateUser(username string, teamID string) (*mm_model.User, error) {
 	ac.mux.Lock()
 	defer ac.mux.Unlock()
 
@@ -97,9 +97,10 @@ func (ac *AdminClient) CreateUser(username string) (*mm_model.User, error) {
 	}
 
 	userNew := &mm_model.User{
-		Username: username,
-		Password: username,
-		Email:    fmt.Sprintf("%s@example.com", username),
+		Username:      username,
+		Password:      "test-password-1", //reverseString(username),
+		Email:         fmt.Sprintf("%s@example.com", username),
+		EmailVerified: true,
 	}
 
 	user, _, err = ac.client.CreateUser(userNew)

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-server/v6/model"
 )
 
 var rnd *rand.Rand
@@ -68,4 +68,12 @@ func wait(delay int64, done chan struct{}) bool {
 	case <-time.After(time.Millisecond * time.Duration(delay)):
 	}
 	return false
+}
+
+func reverseString(s string) string {
+	chars := []rune(s)
+	for i, j := 0, len(chars)-1; i < j; i, j = i+1, j-1 {
+		chars[i], chars[j] = chars[j], chars[i]
+	}
+	return string(chars)
 }

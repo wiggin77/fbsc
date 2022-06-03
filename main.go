@@ -10,9 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattermost/logr"
-
-	"github.com/mattermost/mattermost-server/v6/shared/mlog"
+	"github.com/mattermost/logr/v2"
 )
 
 const (
@@ -21,8 +19,8 @@ const (
 	DefaultBoardsPerChannel = 5
 	DefaultCardsPerBoard    = 25
 
-	DefaultMaxWordsPerSentence      = 100
-	DefaultMaxSentencesPerParagraph = 20
+	DefaultMaxWordsPerSentence      = 30
+	DefaultMaxSentencesPerParagraph = 5
 	DefaultMaxParagraphsPerComment  = 2
 
 	FilePerms = 0664
@@ -43,7 +41,7 @@ func main() {
 
 	defer func(code *int) { os.Exit(*code) }(&exitCode)
 
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	logger := lgr.NewLogger()
 	if err := initLogging(lgr, logConfigFile); err != nil {
 		exitCode = 1
@@ -75,7 +73,7 @@ func main() {
 
 	if createConfig {
 		if err := createDefaultConfig(configFile); err != nil {
-			logger.Error(err)
+			logger.Error("Cannot create default config", logr.Err(err))
 			exitCode = 1
 		}
 		return
@@ -83,7 +81,7 @@ func main() {
 
 	cfg, err := loadConfig(configFile)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("Cannot load config", logr.Err(err))
 		exitCode = 1
 		return
 	}
@@ -101,13 +99,13 @@ func main() {
 
 	admin, err := NewAdminClient(cfg)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("Cannot create admin client", logr.Err(err))
 		exitCode = 3
 		return
 	}
 
 	if err := setUpServer(admin, cfg); err != nil {
-		logger.Error(err)
+		logger.Error("Cannot setup server", logr.Err(err))
 		exitCode = 4
 		return
 	}
@@ -121,10 +119,8 @@ func main() {
 	run(ri)
 }
 
-func run(ri runInfo) stats {
+func run(ri runInfo) {
 	var wg sync.WaitGroup
-	var totalStats stats
-
 	for i := 0; i < ri.cfg.UserCount; i++ {
 		wg.Add(1)
 
@@ -134,22 +130,19 @@ func run(ri runInfo) stats {
 			defer wg.Done()
 			stats, err := runUser(u, ri)
 			if err != nil {
-				ri.logger.Error(err)
+				ri.logger.Error("Cannot simulate user", logr.Err(err))
 			}
-			totalStats = totalStats.add(stats)
+			ri.logger.Info("Statistics",
+				logr.String("user", username),
+				logr.Int("Channels", stats.ChannelCount),
+				logr.Int("Boards", stats.BoardCount),
+				logr.Int("Cards", stats.CardCount),
+				logr.Int("Text", stats.TextCount),
+			)
 		}(username)
 	}
 
 	wg.Wait()
-
-	ri.logger.Info("Statistics",
-		mlog.Int("Channels", totalStats.ChannelCount),
-		mlog.Int("Boards", totalStats.BoardCount),
-		mlog.Int("Cards", totalStats.CardCount),
-		mlog.Int("Text", totalStats.TextCount),
-	)
-
-	return totalStats
 }
 
 func setUpInterruptHandler(cleanUp func()) {
