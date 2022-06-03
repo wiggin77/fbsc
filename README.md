@@ -34,7 +34,9 @@ config.json:
   "cards_per_board": 10,
   "max_words_per_sentence": 100,
   "max_sentences_per_paragraph": 20,
-  "max_paragraphs_per_comment": 2
+  "max_paragraphs_per_comment": 2,
+  "board_delay_ms": 10,
+  "card_delay_ms": 10
 }
 ```
 
@@ -51,3 +53,5 @@ config.json:
 | max_words_per_sentence | Maximum number of words in each sentence for randomly generated card text. |
 | max_sentences_per_paragraph | Maximum number of sentences in each paragraph for randomly generated card text. |
 | max_paragraphs_per_comment | Maximum number of paragraphs in each card description. |
+| board_delay_ms | Number of milliseconds to sleep after creating a board. Use this to throttle during load testing. |
+| card_delay_ms | Number of milliseconds to sleep after creating a board. Use this to throttle during load testing. |

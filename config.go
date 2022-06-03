@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+	"time"
 )
 
 type Config struct {
@@ -23,6 +24,9 @@ type Config struct {
 	MaxWordsPerSentence      int `json:"max_words_per_sentence"`
 	MaxSentencesPerParagraph int `json:"max_sentences_per_paragraph"`
 	MaxParagraphsPerComment  int `json:"max_paragraphs_per_comment"`
+
+	BoardDelay time.Duration `json:"board_delay_ms"`
+	CardDelay  time.Duration `json:"card_delay_ms"`
 }
 
 func createDefaultConfig(filename string) error {
@@ -38,6 +42,8 @@ func createDefaultConfig(filename string) error {
 		MaxWordsPerSentence:      DefaultMaxWordsPerSentence,
 		MaxSentencesPerParagraph: DefaultMaxSentencesPerParagraph,
 		MaxParagraphsPerComment:  DefaultMaxParagraphsPerComment,
+		BoardDelay:               DefaultBoardDelay,
+		CardDelay:                DefaultCardDelay,
 	}
 
 	b, err := json.MarshalIndent(&cfg, "", "\t")

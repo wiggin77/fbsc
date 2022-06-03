@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -17,11 +18,14 @@ const (
 	DefaultUserCount        = 5
 	DefaultChannelsPerUser  = 3
 	DefaultBoardsPerChannel = 5
-	DefaultCardsPerBoard    = 25
+	DefaultCardsPerBoard    = 20
 
 	DefaultMaxWordsPerSentence      = 30
 	DefaultMaxSentencesPerParagraph = 5
 	DefaultMaxParagraphsPerComment  = 2
+
+	DefaultBoardDelay = 10
+	DefaultCardDelay  = 10
 
 	FilePerms = 0664
 )
@@ -31,10 +35,12 @@ func main() {
 	var configFile string
 	var logConfigFile string
 	var createConfig bool
+	var quiet bool
 	var help bool
 	flag.StringVar(&configFile, "f", "", "config file")
 	flag.BoolVar(&createConfig, "c", false, "creates a default config file")
 	flag.StringVar(&logConfigFile, "log", "", "specifies a custom logr config")
+	flag.BoolVar(&quiet, "q", false, "suppress output")
 
 	flag.BoolVar(&help, "h", false, "displays this help text")
 	flag.Parse()
@@ -110,16 +116,29 @@ func main() {
 		return
 	}
 
-	ri := runInfo{
+	ri := &runInfo{
 		cfg:    cfg,
 		logger: logger,
 		done:   done,
 		admin:  admin,
+		quiet:  quiet,
 	}
+
+	start := time.Now()
+
 	run(ri)
+
+	blockCount := atomic.LoadInt64(&ri.blockCount)
+	duration := time.Since(start)
+
+	fmt.Print("\n" + ri.output.String())
+	fmt.Printf("Duration: %s\n", duration.Round(time.Millisecond))
+
+	blocksPerSecond := float64(blockCount) / duration.Seconds()
+	fmt.Printf("Blocks Per Second: %.2f\n", blocksPerSecond)
 }
 
-func run(ri runInfo) {
+func run(ri *runInfo) {
 	var wg sync.WaitGroup
 	for i := 0; i < ri.cfg.UserCount; i++ {
 		wg.Add(1)
@@ -132,13 +151,13 @@ func run(ri runInfo) {
 			if err != nil {
 				ri.logger.Error("Cannot simulate user", logr.Err(err))
 			}
-			ri.logger.Info("Statistics",
-				logr.String("user", username),
-				logr.Int("Channels", stats.ChannelCount),
-				logr.Int("Boards", stats.BoardCount),
-				logr.Int("Cards", stats.CardCount),
-				logr.Int("Text", stats.TextCount),
-			)
+
+			if !ri.quiet {
+				s := fmt.Sprintf("%s: channels=%d  boards=%d  cards=%d  text=%d\n",
+					username, stats.ChannelCount, stats.BoardCount, stats.CardCount, stats.TextCount)
+
+				ri.output.Write(s)
+			}
 		}(username)
 	}
 
