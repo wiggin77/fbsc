@@ -18,7 +18,7 @@ Create a default config:
 ./fbsc -c -f config.json
 ```
 
-Modify the generated config file, at minimum adding a siteURL, and admin credentials. Workspaces, boards, cards and users will be created if needed.
+Modify the generated config file, at minimum adding a siteURL, a team name, and admin credentials. Team, workspaces, boards, cards and users will be created if needed.
 
 config.json:
 
