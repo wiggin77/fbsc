@@ -51,9 +51,6 @@ type makerInfo struct {
 	Cfg         *Config
 	WorkspaceID string
 	User        *mm_model.User
-	Boards      []*fb_model.Block
-	Cards       []*fb_model.Block
-	View        []*fb_model.Block
 	PropertyIds map[string][]string
 }
 
@@ -97,14 +94,15 @@ func runUser(username string, ri *runInfo) (stats, error) {
 
 		for i := 0; i < ri.cfg.BoardsPerChannel; i++ {
 			board := makeBoard(makerInfo)
-			view := makeView(makerInfo, board.ID)
 
-			_, resp := insertBlocks(client, channel.Id, []*fb_model.Block{board, view})
+			board, resp := insertBlock(client, channel.Id, board)
 			if resp.Error != nil {
 				return stats, fmt.Errorf("cannot insert blocks for board %s: %w", board.ID, resp.Error)
 			}
 			stats.BoardCount++
-			ri.IncBlockCount(2)
+			ri.IncBlockCount(1)
+
+			cards := make([]*fb_model.Block, 0, ri.cfg.CardsPerBoard)
 
 			for j := 0; j < ri.cfg.CardsPerBoard; j++ {
 				card := makeCard(makerInfo, board.ID)
@@ -115,10 +113,12 @@ func runUser(username string, ri *runInfo) (stats, error) {
 				cardBlocks = append(cardBlocks, card)
 				cardBlocks = append(cardBlocks, content...)
 
-				_, resp := insertBlocks(client, channel.Id, cardBlocks)
+				_, resp = insertBlocks(client, channel.Id, cardBlocks)
 				if resp.Error != nil {
 					return stats, fmt.Errorf("cannot insert blocks for card %s: %w", card.ID, resp.Error)
 				}
+
+				cards = append(cards, card)
 
 				stats.CardCount++
 				stats.TextCount += len(content)
@@ -133,6 +133,14 @@ func runUser(username string, ri *runInfo) (stats, error) {
 				}
 			}
 
+			views := makeViews(cards, makerInfo, board.ID)
+
+			_, resp = insertBlocks(client, channel.Id, views)
+			if resp.Error != nil {
+				return stats, fmt.Errorf("cannot insert views for board %s: %w", board.ID, resp.Error)
+			}
+			ri.IncBlockCount(len(views))
+
 			if ri.cfg.BoardDelay != 0 {
 				select {
 				case <-ri.done:
@@ -143,6 +151,19 @@ func runUser(username string, ri *runInfo) (stats, error) {
 		}
 	}
 	return stats, nil
+}
+
+func insertBlock(client *Client, workspaceID string, block *model.Block) (*model.Block, *fb_client.Response) {
+	blocks := []*fb_model.Block{block}
+	b, _ := json.Marshal(blocks)
+	r, err := client.FBclient.DoAPIPost(fmt.Sprintf("/workspaces/%s/blocks", workspaceID), string(b))
+	if err != nil {
+		return nil, fb_client.BuildErrorResponse(r, err)
+	}
+	defer closeBody(r)
+
+	blocksNew := model.BlocksFromJSON(r.Body)
+	return &blocksNew[0], fb_client.BuildResponse(r)
 }
 
 func insertBlocks(client *Client, workspaceID string, blocks []*model.Block) ([]model.Block, *fb_client.Response) {
@@ -178,7 +199,6 @@ func makeBoard(info *makerInfo) *fb_model.Block {
 		UpdateAt:    mm_model.GetMillis(),
 		WorkspaceID: info.WorkspaceID,
 	}
-	info.Boards = append(info.Boards, board)
 	return board
 }
 
@@ -238,7 +258,6 @@ func makeCard(info *makerInfo, boardID string) *fb_model.Block {
 		UpdateAt:    mm_model.GetMillis(),
 		WorkspaceID: info.WorkspaceID,
 	}
-	info.Cards = append(info.Cards, card)
 	return card
 }
 
@@ -263,7 +282,7 @@ func makeCardFields(info *makerInfo, contentBlocks []*fb_model.Block) map[string
 	return fields
 }
 
-func makeView(info *makerInfo, boardID string) *fb_model.Block {
+func makeViews(cards []*fb_model.Block, info *makerInfo, boardID string) []*fb_model.Block {
 	view := &fb_model.Block{
 		ID:          fb_utils.NewID(fb_utils.IDTypeView),
 		RootID:      boardID,
@@ -273,12 +292,12 @@ func makeView(info *makerInfo, boardID string) *fb_model.Block {
 		Schema:      1,
 		Type:        fb_model.TypeView,
 		Title:       "Board view",
-		Fields:      makeViewFields(info.Cards),
+		Fields:      makeViewFields(cards),
 		CreateAt:    mm_model.GetMillis(),
 		UpdateAt:    mm_model.GetMillis(),
 		WorkspaceID: info.WorkspaceID,
 	}
-	return view
+	return []*fb_model.Block{view}
 }
 
 func makeViewFields(cards []*fb_model.Block) map[string]interface{} {
