@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -143,7 +144,7 @@ func run(ri *runInfo) {
 	for i := 0; i < ri.cfg.UserCount; i++ {
 		wg.Add(1)
 
-		username := makeName(".")
+		username := strings.ToLower(makeName("."))
 
 		go func(u string) {
 			defer wg.Done()
