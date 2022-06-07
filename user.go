@@ -106,7 +106,7 @@ func runUser(username string, ri *runInfo) (stats, error) {
 
 			for j := 0; j < ri.cfg.CardsPerBoard; j++ {
 				card := makeCard(makerInfo, board.ID)
-				content := makeContent(makerInfo, pickRandomInt(1, 7), board.ID, card.ID)
+				content := makeContent(makerInfo, ri.cfg.GetMaxParagraphs(), board.ID, card.ID)
 				card.Fields = makeCardFields(makerInfo, content)
 
 				cardBlocks := make([]*fb_model.Block, 0, len(content)+1)
