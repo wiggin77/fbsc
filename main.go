@@ -93,17 +93,6 @@ func main() {
 		return
 	}
 
-	done := make(chan struct{})
-
-	setUpInterruptHandler(func() {
-		close(done)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-		_ = lgr.ShutdownWithTimeout(ctx)
-		// give the workers a chance to shut down gracefully (some may not, that's ok).
-		time.Sleep(time.Second * 2)
-	})
-
 	admin, err := NewAdminClient(cfg)
 	if err != nil {
 		logger.Error("Cannot create admin client", logr.Err(err))
@@ -117,6 +106,24 @@ func main() {
 		return
 	}
 
+	done := make(chan struct{})
+	workersExited := make(chan struct{})
+
+	setUpInterruptHandler(func() {
+		close(done)
+
+		// give the workers a chance to shut down gracefully (some may not, that's ok).
+		select {
+		case <-workersExited:
+		case <-time.After(time.Second * 15):
+		}
+
+		// shutdown the logger
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		_ = lgr.ShutdownWithTimeout(ctx)
+	})
+
 	ri := &runInfo{
 		cfg:    cfg,
 		logger: logger,
@@ -124,10 +131,9 @@ func main() {
 		admin:  admin,
 		quiet:  quiet,
 	}
-
 	start := time.Now()
 
-	run(ri)
+	run(ri, workersExited)
 
 	blockCount := atomic.LoadInt64(&ri.blockCount)
 	duration := time.Since(start)
@@ -139,7 +145,8 @@ func main() {
 	fmt.Printf("Blocks Per Second: %.2f\n", blocksPerSecond)
 }
 
-func run(ri *runInfo) {
+func run(ri *runInfo, workersExited chan struct{}) {
+	defer close(workersExited)
 	var wg sync.WaitGroup
 	for i := 0; i < ri.cfg.UserCount; i++ {
 		wg.Add(1)
@@ -176,7 +183,7 @@ func setUpInterruptHandler(cleanUp func()) {
 		if cleanUp != nil {
 			cleanUp()
 		}
-		os.Exit(0)
+		os.Exit(1)
 	}()
 }
 
