@@ -3,12 +3,14 @@ package main
 import (
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/mattermost/mattermost-server/v6/model"
 )
 
 var rnd *rand.Rand
+var mux sync.Mutex
 
 func init() {
 	s1 := rand.NewSource(time.Now().UnixNano())
@@ -16,6 +18,9 @@ func init() {
 }
 
 func pickRandomString(arr []string) string {
+	mux.Lock()
+	defer mux.Unlock()
+
 	return arr[rnd.Intn(len(arr))]
 }
 
@@ -23,10 +28,17 @@ func pickRandomInt(min int, max int) int {
 	if min > max {
 		return max
 	}
+
+	mux.Lock()
+	defer mux.Unlock()
+
 	return rnd.Intn(max-min) + min
 }
 
 func shouldDoIt(probability float32) bool {
+	mux.Lock()
+	defer mux.Unlock()
+
 	return rnd.Float32() <= probability
 }
 
@@ -45,6 +57,9 @@ func randomDuration(avgDurationMillis int64, variance float32) int64 {
 	if avgDurationMillis < 100 {
 		return avgDurationMillis
 	}
+
+	mux.Lock()
+	defer mux.Unlock()
 
 	delta := int64(float32(avgDurationMillis) * variance)
 	return avgDurationMillis + rnd.Int63n(delta) - rnd.Int63n(delta)
