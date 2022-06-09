@@ -22,7 +22,7 @@ import (
 type runInfo struct {
 	cfg        *Config
 	logger     logr.Logger
-	done       chan struct{}
+	abort      chan struct{}
 	admin      *AdminClient
 	quiet      bool
 	blockCount int64
@@ -126,8 +126,8 @@ func runUser(username string, ri *runInfo) (stats, error) {
 				ri.IncBlockCount(len(content) + 1)
 
 				select {
-				case <-ri.done:
-					return stats, fmt.Errorf("aborting user %s", user.Username)
+				case <-ri.abort:
+					return stats, nil
 				case <-time.After(time.Millisecond * ri.cfg.CardDelay):
 				default:
 				}
@@ -143,7 +143,7 @@ func runUser(username string, ri *runInfo) (stats, error) {
 
 			if ri.cfg.BoardDelay != 0 {
 				select {
-				case <-ri.done:
+				case <-ri.abort:
 					return stats, fmt.Errorf("aborting user %s", user.Username)
 				case <-time.After(time.Millisecond * ri.cfg.BoardDelay):
 				}

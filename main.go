@@ -106,11 +106,11 @@ func main() {
 		return
 	}
 
-	done := make(chan struct{})
+	abort := make(chan struct{})
 	workersExited := make(chan struct{})
 
 	setUpInterruptHandler(func() {
-		close(done)
+		close(abort)
 
 		// give the workers a chance to shut down gracefully (some may not, that's ok).
 		select {
@@ -127,7 +127,7 @@ func main() {
 	ri := &runInfo{
 		cfg:    cfg,
 		logger: logger,
-		done:   done,
+		abort:  abort,
 		admin:  admin,
 		quiet:  quiet,
 	}
