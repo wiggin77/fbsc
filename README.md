@@ -1,6 +1,6 @@
 # Focalboard Simple|Simulated Client
 
-This app generates boards, cards, commands, and other block types within the Focalboard application. Any (reasonable) number of users can be simulated, with each user generating blocks based on limits defined in the configuration file.
+This app generates boards, cards, content, and other block types within the Focalboard application. Any (reasonable) number of users can be simulated, with each user generating blocks based on limits defined in the configuration file.
 
 Content for card text is `Lorem ipsum` generated text with randomized words, sentences, and paragraphs.
 
