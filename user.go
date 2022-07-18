@@ -60,7 +60,7 @@ func runUser(username string, ri *runInfo) (stats, error) {
 	// create user
 	user, err := ri.admin.CreateUser(username, ri.cfg.teamID)
 	if err != nil {
-		return stats, err
+		return stats, fmt.Errorf("cannot create user: %w", err)
 	}
 
 	// add user to team
@@ -73,7 +73,7 @@ func runUser(username string, ri *runInfo) (stats, error) {
 
 	client, err := NewClient(ri.cfg.SiteURL, user.Username, password)
 	if err != nil {
-		return stats, err
+		return stats, fmt.Errorf("cannot create client: %w", err)
 	}
 
 	// create channels, boards, cards, and content

@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	DefaultConcurrentUsers  = 3
 	DefaultUserCount        = 5
 	DefaultChannelsPerUser  = 3
 	DefaultBoardsPerChannel = 5
@@ -56,7 +57,7 @@ func main() {
 	}
 
 	defer func(l *logr.Logr) {
-		if lgr.IsShutdown() {
+		if l.IsShutdown() {
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
@@ -148,32 +149,61 @@ func main() {
 func run(ri *runInfo, workersExited chan struct{}) {
 	defer close(workersExited)
 	var wg sync.WaitGroup
-	for i := 0; i < ri.cfg.UserCount; i++ {
+
+	var usersLeft int32 = int32(ri.cfg.UserCount)
+	concurrency := ri.cfg.ConcurrentUsers
+
+	if !ri.quiet {
+		s := fmt.Sprintf("Creating %d users with %d concurrent threads.\n\n", usersLeft, concurrency)
+		ri.output.Write(s)
+	}
+
+	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-
-		username := strings.ToLower(makeName("."))
-
-		go func(u string) {
+		go func() {
 			defer wg.Done()
-			stats, err := runUser(u, ri)
-			if err != nil {
-				ri.logger.Error("Cannot simulate user", logr.Err(err))
-			}
-
-			if !ri.quiet {
-				s := fmt.Sprintf("%s: channels=%d  boards=%d  cards=%d  text=%d\n",
-					username, stats.ChannelCount, stats.BoardCount, stats.CardCount, stats.TextCount)
-
-				ri.output.Write(s)
-			}
-		}(username)
+			runConcurrentUsers(ri, &usersLeft)
+		}()
 	}
 
 	wg.Wait()
 }
 
+func runConcurrentUsers(ri *runInfo, usersLeft *int32) {
+	fmt.Println("Starting thread")
+
+	for {
+		select {
+		case <-ri.abort:
+			fmt.Println("Exiting thread (abort)")
+			return
+		default:
+		}
+
+		left := atomic.AddInt32(usersLeft, -1)
+		if left <= 0 {
+			fmt.Println("Exiting thread (userLeft <= 0)")
+			return
+		}
+
+		username := strings.ToLower(makeName("."))
+
+		stats, err := runUser(username, ri)
+		if err != nil {
+			ri.logger.Error("Cannot simulate user", logr.String("username", username), logr.Err(err))
+		}
+
+		if !ri.quiet {
+			s := fmt.Sprintf("%s: channels=%d  boards=%d  cards=%d  text=%d  remaining=%d\n",
+				username, stats.ChannelCount, stats.BoardCount, stats.CardCount, stats.TextCount, left)
+
+			ri.output.Write(s)
+		}
+	}
+}
+
 func setUpInterruptHandler(cleanUp func()) {
-	sig := make(chan os.Signal)
+	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	go func() {

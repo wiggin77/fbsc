@@ -15,7 +15,8 @@ type Config struct {
 	TeamName string `json:"team_name"` // optional: if empty then a new team will be created
 	teamID   string
 
-	UserCount int `json:"user_count"` // number of users to create
+	ConcurrentUsers int `json:"concurrent_users"` // number of users to simulate concurrently
+	UserCount       int `json:"user_count"`       // number of users to create
 
 	ChannelsPerUser  int `json:"channels_per_user"`
 	BoardsPerChannel int `json:"boards_per_channel"`
@@ -35,6 +36,7 @@ func createDefaultConfig(filename string) error {
 		AdminUsername:            "",
 		AdminPassword:            "",
 		TeamName:                 "",
+		ConcurrentUsers:          DefaultConcurrentUsers,
 		UserCount:                DefaultUserCount,
 		ChannelsPerUser:          DefaultChannelsPerUser,
 		BoardsPerChannel:         DefaultBoardsPerChannel,
