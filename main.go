@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fbsc/termprinter"
 	"flag"
 	"fmt"
 	"os"
@@ -35,13 +36,11 @@ const (
 func main() {
 	var exitCode int
 	var configFile string
-	var logConfigFile string
 	var createConfig bool
 	var quiet bool
 	var help bool
 	flag.StringVar(&configFile, "f", "", "config file")
 	flag.BoolVar(&createConfig, "c", false, "creates a default config file")
-	flag.StringVar(&logConfigFile, "log", "", "specifies a custom logr config")
 	flag.BoolVar(&quiet, "q", false, "suppress output")
 
 	flag.BoolVar(&help, "h", false, "displays this help text")
@@ -49,9 +48,11 @@ func main() {
 
 	defer func(code *int) { os.Exit(*code) }(&exitCode)
 
+	printer := termprinter.NewPrinter()
+
 	lgr, _ := logr.New()
 	logger := lgr.NewLogger()
-	if err := initLogging(lgr, logConfigFile); err != nil {
+	if err := initLogging(lgr, printer); err != nil {
 		exitCode = 1
 		return
 	}
@@ -126,11 +127,13 @@ func main() {
 	})
 
 	ri := &runInfo{
-		cfg:    cfg,
-		logger: logger,
-		abort:  abort,
-		admin:  admin,
-		quiet:  quiet,
+		cfg:     cfg,
+		printer: printer,
+		logger:  logger,
+		abort:   abort,
+		admin:   admin,
+		quiet:   quiet,
+		stats:   &stats{},
 	}
 	start := time.Now()
 
@@ -139,11 +142,10 @@ func main() {
 	blockCount := atomic.LoadInt64(&ri.blockCount)
 	duration := time.Since(start)
 
-	fmt.Print("\n" + ri.output.String())
-	fmt.Printf("Duration: %s\n", duration.Round(time.Millisecond))
+	printer.Printf("Duration: %s\n", duration.Round(time.Millisecond))
 
 	blocksPerSecond := float64(blockCount) / duration.Seconds()
-	fmt.Printf("Blocks Per Second: %.2f\n", blocksPerSecond)
+	printer.Printf("Blocks Per Second: %.2f\n", blocksPerSecond)
 }
 
 func run(ri *runInfo, workersExited chan struct{}) {
@@ -154,8 +156,7 @@ func run(ri *runInfo, workersExited chan struct{}) {
 	concurrency := ri.cfg.ConcurrentUsers
 
 	if !ri.quiet {
-		s := fmt.Sprintf("Creating %d users with %d concurrent threads.\n\n", usersLeft, concurrency)
-		ri.output.Write(s)
+		ri.printer.Printf("Creating %d users with %d concurrent threads.\n\n", usersLeft, concurrency)
 	}
 
 	for i := 0; i < concurrency; i++ {
@@ -170,19 +171,14 @@ func run(ri *runInfo, workersExited chan struct{}) {
 }
 
 func runConcurrentUsers(ri *runInfo, usersLeft *int32) {
-	fmt.Println("Starting thread")
-
 	for {
 		select {
 		case <-ri.abort:
-			fmt.Println("Exiting thread (abort)")
 			return
 		default:
 		}
 
-		left := atomic.AddInt32(usersLeft, -1)
-		if left <= 0 {
-			fmt.Println("Exiting thread (userLeft <= 0)")
+		if atomic.AddInt32(usersLeft, -1) <= 0 {
 			return
 		}
 
@@ -193,12 +189,7 @@ func runConcurrentUsers(ri *runInfo, usersLeft *int32) {
 			ri.logger.Error("Cannot simulate user", logr.String("username", username), logr.Err(err))
 		}
 
-		if !ri.quiet {
-			s := fmt.Sprintf("%s: channels=%d  boards=%d  cards=%d  text=%d  remaining=%d\n",
-				username, stats.ChannelCount, stats.BoardCount, stats.CardCount, stats.TextCount, left)
-
-			ri.output.Write(s)
-		}
+		ri.AddStats(stats)
 	}
 }
 
@@ -208,7 +199,7 @@ func setUpInterruptHandler(cleanUp func()) {
 
 	go func() {
 		<-sig
-		fmt.Println("  user abort; exiting...")
+		fmt.Println("\n  user abort; exiting...")
 
 		if cleanUp != nil {
 			cleanUp()

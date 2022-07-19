@@ -15,3 +15,5 @@
 # Project
 fbsc
 config.json
+go.work
+go.work.sum

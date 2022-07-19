@@ -52,8 +52,13 @@ func NewClient(siteURL string, username string, password string) (*Client, error
 	}, nil
 }
 
-func (c *Client) InsertBlocks(blocks []fb_model.Block) ([]fb_model.Block, error) {
-	blocks, resp := c.FBclient.InsertBlocks(blocks)
+func (c *Client) InsertBoard(board *fb_model.Board) (*fb_model.Board, error) {
+	boardNew, resp := c.FBclient.CreateBoard(board)
+	return boardNew, resp.Error
+}
+
+func (c *Client) InsertBlocks(boardID string, blocks []fb_model.Block) ([]fb_model.Block, error) {
+	blocks, resp := c.FBclient.InsertBlocksDisableNotify(boardID, blocks)
 	return blocks, resp.Error
 }
 
