@@ -4,6 +4,10 @@ This app generates boards, cards, content, and other block types within the Foca
 
 Content for card text is `Lorem ipsum` generated text with randomized words, sentences, and paragraphs.
 
+## Note
+
+Tip of master branch targets Boards 7.2 (or higher).  For Boards 7.1 use the [v0.5.0 release](https://github.com/wiggin77/fbsc/releases/tag/v0.5.0).
+
 ## Usage
 
 ```bash
