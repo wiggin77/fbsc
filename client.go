@@ -58,7 +58,7 @@ func (c *Client) InsertBoard(board *fb_model.Board) (*fb_model.Board, error) {
 }
 
 func (c *Client) InsertBlocks(boardID string, blocks []fb_model.Block) ([]fb_model.Block, error) {
-	blocks, resp := c.FBclient.InsertBlocksDisableNotify(boardID, blocks)
+	blocks, resp := c.FBclient.InsertBlocks(boardID, blocks, true)
 	return blocks, resp.Error
 }
 
