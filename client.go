@@ -6,11 +6,11 @@ import (
 	"path"
 	"strings"
 
-	fb_client "github.com/mattermost/focalboard/server/client"
+	fb_client "github.com/mattermost/mattermost-server/server/v8/boards/client"
 
-	fb_model "github.com/mattermost/focalboard/server/model"
+	fb_model "github.com/mattermost/mattermost-server/server/v8/boards/model"
 
-	mm_model "github.com/mattermost/mattermost-server/v6/model"
+	mm_model "github.com/mattermost/mattermost-server/server/v8/model"
 )
 
 type Client struct {
@@ -33,7 +33,7 @@ func NewClient(siteURL string, username string, password string) (*Client, error
 	if err != nil {
 		return nil, fmt.Errorf("Invalid site URL: %w", err)
 	}
-	u.Path = path.Join("/plugins/focalboard/", fb_client.APIURLSuffix)
+	u.Path = path.Join("/plugins/boards/", fb_client.APIURLSuffix)
 	fbclient.APIURL = u.String()
 
 	me2, resp := fbclient.GetMe()
@@ -57,7 +57,7 @@ func (c *Client) InsertBoard(board *fb_model.Board) (*fb_model.Board, error) {
 	return boardNew, resp.Error
 }
 
-func (c *Client) InsertBlocks(boardID string, blocks []fb_model.Block) ([]fb_model.Block, error) {
+func (c *Client) InsertBlocks(boardID string, blocks []*fb_model.Block) ([]*fb_model.Block, error) {
 	blocks, resp := c.FBclient.InsertBlocks(boardID, blocks, true)
 	return blocks, resp.Error
 }

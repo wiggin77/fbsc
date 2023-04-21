@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mattermost/focalboard/server/model"
-	fb_model "github.com/mattermost/focalboard/server/model"
-	fb_utils "github.com/mattermost/focalboard/server/utils"
+	fb_model "github.com/mattermost/mattermost-server/server/v8/boards/model"
+	fb_utils "github.com/mattermost/mattermost-server/server/v8/boards/utils"
 
-	mm_model "github.com/mattermost/mattermost-server/v6/model"
+	mm_model "github.com/mattermost/mattermost-server/server/v8/model"
 )
 
 type makerInfo struct {
@@ -121,12 +120,8 @@ func runUser(username string, ri *runInfo) (stats, error) {
 	return stats, nil
 }
 
-func insertBlocks(client *Client, boardID string, blocks []*model.Block) ([]model.Block, error) {
-	insertBlocks := make([]model.Block, 0, len(blocks))
-	for _, b := range blocks {
-		insertBlocks = append(insertBlocks, *b)
-	}
-	return client.InsertBlocks(boardID, insertBlocks)
+func insertBlocks(client *Client, boardID string, blocks []*fb_model.Block) ([]*fb_model.Block, error) {
+	return client.InsertBlocks(boardID, blocks)
 }
 
 func makeBoard(info *makerInfo) *fb_model.Board {
